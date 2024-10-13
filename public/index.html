@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heatmap</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-image: url('./boat.jpg');
+            background-size: 100% 100%; /* Passt die Größe des Bildes an die Größe des Viewports an */
+            background-repeat: no-repeat; /* Bild wird nicht wiederholt */
+            height: 100vh; /* Viewport-Höhe */
+            width: 100vw; /* Viewport-Breite */
+        }
+        #heatmap {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        .valueLabel {
+            position: absolute;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            transform: translate(-50%, -50%);  /* Zentriert den Text um den Punkt */
+        }
+    </style>
+</head>
+<body>
+    <div id="heatmap"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="./heatmap.min.js"></script>
+    <script>
+        const socket = io();
+        const heatmapInstance = h337.create({
+            container: document.getElementById('heatmap'),
+            radius: 75,
+            maxOpacity: .8,
+            minOpacity: .1,
+            gradient: {
+                0.1: "white",
+                0.2: "yellow",
+                0.7: "red"
+            }
+        });
+
+        const points = [
+            { x: '12%', y: '18%' },
+            { x: '30%', y: '18%' },
+            { x: '47%', y: '18%' },
+            { x: '70%', y: '18%' },
+            { x: '12%', y: '82%' },
+            { x: '30%', y: '82%' },
+            { x: '47%', y: '82%' },
+            { x: '70%', y: '82%' },
+            { x: '70%', y: '50%' },
+            { x: '50%', y: '50%' },
+        ];
+
+        const data = {
+            max: 70, // Maximum temperature
+            data: points.map(p => ({
+                x: window.innerWidth * parseFloat(p.x) / 100,
+                y: window.innerHeight * parseFloat(p.y) / 100,
+                value: 0
+            }))
+        };
+
+        heatmapInstance.setData(data);
+
+        // Funktion, um dynamisch die Werte an den Heatmap-Punkten anzuzeigen
+        points.forEach((point, index) => {
+            const label = document.createElement('div');
+            label.id = "value" + index;
+            label.classList.add('valueLabel');
+            label.innerText = `unknown °C`;
+
+            // Positioniere den Wert über dem Punkt
+            label.style.left = window.innerWidth * parseFloat(points[index].x) / 100 + "px";
+            label.style.top = window.innerHeight * parseFloat(points[index].y) / 100 + "px";
+
+            // Füge das Label in den Heatmap-Container ein
+            document.getElementById('heatmap').appendChild(label);
+        });
+
+        // Update heatmap when temperature data is received
+        socket.on('temperatureUpdate', ({ index, temp }) => {
+            console.log(`Received message for index ${index}: ${temp}°C`);
+            data.data[index].value = temp;
+            heatmapInstance.setData(data);
+
+            // Update den Text direkt in der Heatmap
+            const label = document.querySelector(`#value${index}`);
+            if (label) {
+                if (temp == null) {
+                    label.innerText = `N/A °C`;
+                } else {
+                    label.innerText = `${temp}°C`;
+                }
+            }
+        });
+
+        socket.on('connect', () => {
+            console.log('websocket connected');
+            socket.emit("hello");
+        });
+        
+        // Adjust heatmap points on window resize
+        window.addEventListener('resize', () => {
+            location.reload();
+        });
+    </script>
+</body>
+</html>
+

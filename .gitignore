@@ -1,3 +1,7 @@
+# Windows node daemon
+daemon/*
+
+
 # Logs
 logs
 *.log
