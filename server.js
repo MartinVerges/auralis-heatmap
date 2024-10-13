@@ -25,11 +25,6 @@ const mqttClient = mqtt.connect(brokerUrl, {
     reconnectPeriod: 10*1000, // Try reconnecting every 10 seconds
 });
 
-// Array to store temperatures
-const temperatures = new Array(10).fill(null);  // Standardwerte für die Punkte
-const timers = new Array(10).fill(null);  // Timer für jeden Punkt
-const MQTT_TIMEOUT = 31*60*1000;  // 31 Minuten, um die Punkte auszublenden 
-
 // Mapping MQTT topics to heatmap points
 const topics = [
     process.env.POINT_1_TOPIC,
@@ -43,6 +38,12 @@ const topics = [
     process.env.POINT_9_TOPIC,
     process.env.POINT_10_TOPIC,
 ];
+
+// Array to store temperatures
+const temperatures = new Array(topics.length).fill(null);  // Standardwerte für die Punkte
+const humidities = new Array(topics.length).fill(null);  // Standardwerte für die Punkte
+const timers = new Array(topics.length).fill(null);  // Timer für jeden Punkt
+const MQTT_TIMEOUT = 31*60*1000;  // 31 Minuten, um die Punkte auszublenden 
 
 // Check if topics are defined
 topics.forEach((topic, index) => {
@@ -64,12 +65,14 @@ mqttClient.on('connect', () => {
     // Subscribe to MQTT topics
     topics.forEach((topic, index) => {
         if (topic) {
-            mqttClient.subscribe(topic, (err) => {
-                if (err) {
-                    console.error(`Failed to subscribe to topic ${topic}:`, err.message);
-                } else {
-                    console.log(`Successfully subscribed to topic ${topic}.`);
-                }
+            ['temperature', 'humidity'].forEach((subTopic) => {
+                mqttClient.subscribe(topic+"/"+subTopic, (err) => {
+                    if (err) {
+                        console.error(`Failed to subscribe to topic ${topic}/${subTopic}:`, err.message);
+                    } else {
+                        console.log(`Successfully subscribed to topic ${topic}/${subTopic}.`);
+                    }
+                });
             });
         }
     });
@@ -92,36 +95,45 @@ mqttClient.on('offline', () => {
 
 // Handle MQTT message events
 mqttClient.on('message', (receivedTopic, message) => {
-    const temp = parseFloat(message.toString());
-    const topicIndex = topics.indexOf(receivedTopic);
-  
+    const data = parseFloat(message.toString());
+    const topicIndex = topics.indexOf(receivedTopic.substring(0, receivedTopic.lastIndexOf("/")));
+
     if (topicIndex !== -1) {
-      console.log(`Received message from ${receivedTopic}: ${temp}°C`);
-  
-      // Temperatur aktualisieren und an den Client senden
-      temperatures[topicIndex] = temp;
-      io.emit('temperatureUpdate', { index: topicIndex, temp });
-  
-      // Vorhandenen Timer stoppen, wenn Daten ankommen
-      if (timers[topicIndex]) {
-        clearTimeout(timers[topicIndex]);
-      }
-  
-      // Neuen Timer setzen, um den Punkt nach einer bestimmten Zeit auszublenden
-      timers[topicIndex] = setTimeout(() => {
-        hidePoint(topicIndex);
-      }, MQTT_TIMEOUT);
+        console.log(`Received message from ${receivedTopic}: ${data}`);
+
+        // Temperatur aktualisieren und an den Client senden
+        if (receivedTopic.endsWith('temperature')) {
+            temperatures[topicIndex] = data;
+            io.emit('temperatureUpdate', { index: topicIndex, data });
+        } else if (receivedTopic.endsWith('humidity')) {
+            humidities[topicIndex] = data;
+            io.emit('humidityUpdate', { index: topicIndex, data });    
+        }
+
+        // Vorhandenen Timer stoppen, wenn Daten ankommen
+        if (timers[topicIndex]) {
+            clearTimeout(timers[topicIndex]);
+        }
+
+        // Neuen Timer setzen, um den Punkt nach einer bestimmten Zeit auszublenden
+        timers[topicIndex] = setTimeout(() => {
+            hidePoint(topicIndex);
+        }, MQTT_TIMEOUT);
     } else {
-      console.warn(`Received message from unknown topic ${receivedTopic}`);
+        console.warn(`Received message from unknown topic ${receivedTopic}`);
     }
 });
 
 io.on('connection', (socket) => {
     socket.on('hello', () => {
         console.log(`New client connected`);
-        temperatures.forEach((temp, key) => {
-            console.log(`Send known temperature ${key}: ${temp}°C`);
-            io.emit('temperatureUpdate', { index: key, temp });
+        temperatures.forEach((data, key) => {
+            console.log(`Send known temperature ${key}: ${data}°C`);
+            io.emit('temperatureUpdate', { index: key, temp: data });
+        });
+        humidities.forEach((data, key) => {
+            console.log(`Send known humidity ${key}: ${data}°C`);
+            io.emit('humidityUpdate', { index: key, humidity: data });
         });
     });
 });

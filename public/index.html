@@ -65,7 +65,8 @@
             data: points.map(p => ({
                 x: window.innerWidth * parseFloat(p.x) / 100,
                 y: window.innerHeight * parseFloat(p.y) / 100,
-                value: 0
+                value: 0,
+                humidity: 0
             }))
         };
 
@@ -76,7 +77,16 @@
             const label = document.createElement('div');
             label.id = "value" + index;
             label.classList.add('valueLabel');
-            label.innerText = `unknown °C`;
+
+            const temp = document.createElement('div');
+            temp.id = "temp" + index;
+            temp.innerText = 'unknown °C';
+            label.appendChild(temp)
+
+            const humidity = document.createElement('div');
+            humidity.id = "humidity" + index;
+            temp.innerText = 'unknown %';
+            label.appendChild(humidity)
 
             // Positioniere den Wert über dem Punkt
             label.style.left = window.innerWidth * parseFloat(points[index].x) / 100 + "px";
@@ -88,17 +98,34 @@
 
         // Update heatmap when temperature data is received
         socket.on('temperatureUpdate', ({ index, temp }) => {
-            console.log(`Received message for index ${index}: ${temp}°C`);
+            console.log(`Received temperatur message for index ${index}: ${temp}°C`);
             data.data[index].value = temp;
             heatmapInstance.setData(data);
 
             // Update den Text direkt in der Heatmap
-            const label = document.querySelector(`#value${index}`);
+            const label = document.querySelector(`#temp${index}`);
             if (label) {
                 if (temp == null) {
                     label.innerText = `N/A °C`;
                 } else {
-                    label.innerText = `${temp}°C`;
+                    label.innerText = `${temp} °C`;
+                }
+            }
+        });
+
+        // Update heatmap when temperature data is received
+        socket.on('humidityUpdate', ({ index, humidity }) => {
+            console.log(`Received humidity message for index ${index}: ${humidity}%`);
+            data.data[index].humidity = humidity;
+            heatmapInstance.setData(data);
+
+            // Update den Text direkt in der Heatmap
+            const label = document.querySelector(`#humidity${index}`);
+            if (label) {
+                if (humidity == null) {
+                    label.innerText = `N/A %`;
+                } else {
+                    label.innerText = `${humidity} %`;
                 }
             }
         });
