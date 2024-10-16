@@ -22,7 +22,7 @@ console.log(`Attempting to connect to MQTT broker at: ${brokerUrl}`);
 
 // MQTT client setup
 const mqttClient = mqtt.connect(brokerUrl, {
-    reconnectPeriod: 10*1000, // Try reconnecting every 10 seconds
+    reconnectPeriod: 10 * 1000, // Try reconnecting every 10 seconds
 });
 
 // Mapping MQTT topics to heatmap points
@@ -43,7 +43,7 @@ const topics = [
 const temperatures = new Array(topics.length).fill(null);  // Standardwerte für die Punkte
 const humidities = new Array(topics.length).fill(null);  // Standardwerte für die Punkte
 const timers = new Array(topics.length).fill(null);  // Timer für jeden Punkt
-const MQTT_TIMEOUT = 31*60*1000;  // 31 Minuten, um die Punkte auszublenden 
+const MQTT_TIMEOUT = 31 * 60 * 1000;  // 31 Minuten, um die Punkte auszublenden 
 
 // Check if topics are defined
 topics.forEach((topic, index) => {
@@ -54,8 +54,11 @@ topics.forEach((topic, index) => {
 
 // Funktion, um einen Punkt unsichtbar zu machen
 function hidePoint(index) {
-    temperatures[index] = null;  // Setze den Wert auf 0 (unsichtbar)
-    io.emit('temperatureUpdate', { index, temp: null });  // Update an den Client senden
+    console.log(`removing data point ${index}`);
+    temperatures[index] = null;
+    humidities[index] = null;
+    io.emit('temperatureUpdate', { index, temp: null });
+    io.emit('humidityUpdate', { index, humidity: null });
 }
 
 // Log when MQTT connection is successful
@@ -66,7 +69,7 @@ mqttClient.on('connect', () => {
     topics.forEach((topic, index) => {
         if (topic) {
             ['temperature', 'humidity'].forEach((subTopic) => {
-                mqttClient.subscribe(topic+"/"+subTopic, (err) => {
+                mqttClient.subscribe(topic + "/" + subTopic, (err) => {
                     if (err) {
                         console.error(`Failed to subscribe to topic ${topic}/${subTopic}:`, err.message);
                     } else {
@@ -104,10 +107,10 @@ mqttClient.on('message', (receivedTopic, message) => {
         // Temperatur aktualisieren und an den Client senden
         if (receivedTopic.endsWith('temperature')) {
             temperatures[topicIndex] = data;
-            io.emit('temperatureUpdate', { index: topicIndex, data });
+            io.emit('temperatureUpdate', { index: topicIndex, temp: data });
         } else if (receivedTopic.endsWith('humidity')) {
             humidities[topicIndex] = data;
-            io.emit('humidityUpdate', { index: topicIndex, data });    
+            io.emit('humidityUpdate', { index: topicIndex, humidity: data });
         }
 
         // Vorhandenen Timer stoppen, wenn Daten ankommen
